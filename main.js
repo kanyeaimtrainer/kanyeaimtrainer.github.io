@@ -5,10 +5,16 @@ import * as THREE from 'three';
 //================================================================//
 
 let scene, camera, renderer, clock;
-let player, floor, walls, targets = [];
+let floor, walls, targets = [];
 let keys = {};
 const playerSpeed = 10.0;
 const playerHeight = 1.0;
+
+// Camera/Scope settings
+const defaultFov = 75;
+const scopedFov = 25;
+let isScoped = false;
+const scopedSensitivity = 0.4; // 40% of normal sensitivity when scoped
 
 let textureLoader;
 const textureFiles = [
@@ -17,6 +23,11 @@ const textureFiles = [
 ];
 let loadedTextures = [];
 
+// HUD Elements
+let weaponImg;
+let scopeOverlay;
+
+
 // Initialize the scene
 function init() {
     // Scene
@@ -24,7 +35,7 @@ function init() {
     scene.background = new THREE.Color(0x87ceeb); // Sky blue background
 
     // Camera
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(defaultFov, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, playerHeight, 5); // Start position
 
     // Renderer
@@ -35,6 +46,10 @@ function init() {
 
     // Clock
     clock = new THREE.Clock();
+
+    // Get HUD elements
+    weaponImg = document.getElementById('weapon-img');
+    scopeOverlay = document.getElementById('scope-overlay');
 
     textureLoader = new THREE.TextureLoader();
     textureFiles.forEach(file => {
@@ -147,10 +162,12 @@ document.addEventListener('keyup', (event) => {
 
 // Listen for mouse movement
 let euler = new THREE.Euler(0, 0, 0, 'YXZ');
+const baseSensitivity = 0.002;
 document.addEventListener('mousemove', (event) => {
     if (document.pointerLockElement === document.body) {
-        euler.y -= event.movementX * 0.002;
-        euler.x -= event.movementY * 0.002;
+        const currentSensitivity = isScoped ? baseSensitivity * scopedSensitivity : baseSensitivity;
+        euler.y -= event.movementX * currentSensitivity;
+        euler.x -= event.movementY * currentSensitivity;
         euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x)); // Clamp vertical rotation
         camera.quaternion.setFromEuler(euler);
     }
@@ -173,13 +190,23 @@ function updatePlayer(deltaTime) {
     moveDirection.y = 0; // Prevent flying
     moveDirection.normalize();
 
-    if (moveDirection.length() > 0) {
+    if (moveDirection.length() > 0 && !isScoped) { // Don't show bobbing while scoped
+        // Weapon bobbing animation
+        if (!weaponImg.classList.contains('walking')) {
+            weaponImg.classList.add('walking');
+        }
+        
         const moveStep = moveDirection.multiplyScalar(playerSpeed * deltaTime);
         
         // Basic collision detection
         const newPosition = camera.position.clone().add(moveStep);
         if (!isColliding(newPosition)) {
             camera.position.add(moveStep);
+        }
+    } else {
+        // Stop weapon bobbing animation
+        if (weaponImg.classList.contains('walking')) {
+            weaponImg.classList.remove('walking');
         }
     }
 }
@@ -197,16 +224,44 @@ function isColliding(position) {
 }
 
 //================================================================//
-// SHOOTING MECHANIC
+// SHOOTING & SCOPING MECHANIC
 //================================================================//
 
+// Prevent context menu on right-click
+document.addEventListener('contextmenu', event => event.preventDefault());
+
 document.addEventListener('mousedown', (event) => {
-    if (document.pointerLockElement === document.body && event.button === 0) { // Left click
-        shoot();
+    if (document.pointerLockElement === document.body) {
+        if (event.button === 0) { // Left click
+            shoot();
+        } else if (event.button === 2) { // Right click
+            toggleScope();
+        }
     }
 });
 
+function toggleScope() {
+    isScoped = !isScoped;
+    document.body.classList.toggle('scoped-in');
+
+    if (isScoped) {
+        camera.fov = scopedFov;
+    } else {
+        camera.fov = defaultFov;
+    }
+    // IMPORTANT: Update projection matrix after changing FOV
+    camera.updateProjectionMatrix();
+}
+
 function shoot() {
+    // Weapon recoil animation (only if not scoped)
+    if (!isScoped) {
+        weaponImg.classList.add('recoil');
+        setTimeout(() => {
+            weaponImg.classList.remove('recoil');
+        }, 150);
+    }
+
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera({ x: 0, y: 0 }, camera); // Fire from center of the screen
 
