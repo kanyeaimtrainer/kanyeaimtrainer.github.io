@@ -1,0 +1,24 @@
+/* Remove default margin and padding */
+body {
+    margin: 0;
+    overflow: hidden; /* Hide scrollbars */
+}
+
+/* Make the canvas fill the entire screen */
+#game-canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* Style and position the crosshair */
+#crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 24px;
+    text-shadow: 2px 2px 4px #000000;
+    pointer-events: none; /* Allows clicks to go through it */
+}
